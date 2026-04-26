@@ -1,8 +1,17 @@
 import AuthContainer from "../components/authContainer";
 import GlowBackground from "../components/glowBackground";
 import InteractiveGridBackground from "../components/lightswind/interactive-grid-background.tsx";
+import { signup } from "../apis/auth.apis.js";
 
 export default function Signup() {
+ async function onSubmitAction(input) {
+  try {
+    const res = await signup(input);
+    console.log(res);
+  } catch (err) {
+    console.log(err.message || err);
+  }
+}
   return (
     <div className="h-dvh w-full overflow-hidden bg-black text-white flex items-center justify-center">
       <InteractiveGridBackground
@@ -20,10 +29,10 @@ export default function Signup() {
         anchorTagName={"Login"}
         fields={[
           {
-            name: "fullName",
-            label: "Full Name",
+            name: "username",
+            label: "username",
             type: "text",
-            placeholder: "Enter your full name",
+            placeholder: "Choose your username",
           },
           {
             name: "email",
@@ -37,7 +46,9 @@ export default function Signup() {
             type: "password",
             placeholder: "Create your password",
           },
+        
         ]}
+          onSubmitAction = {onSubmitAction}
       />
     </div>
   );

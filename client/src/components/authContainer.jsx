@@ -9,11 +9,13 @@ export default function AuthContainer({
   buttonName,
   anchorTagName,
   fields,
+  onSubmitAction
 }) {
   const [input, setInput] = useState({});
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
+    await onSubmitAction(input)
     console.log(input);
     setInput({});
   }
