@@ -1,88 +1,86 @@
-import User from '../models/user.model.js';
-import { otpSchema } from '../schemas/otp.schema.js';
 import jwt from 'jsonwebtoken';
-import { registerSchema } from '../schemas/user.schema.js';
 import bcrypt from 'bcrypt';
-import crypto from 'crypto';
-import { findUserByEmailOrUsername } from '../services/auth.services.js';
-import { generateAccessToken, generateRefreshToken } from '../utils/jwt.js';
-import sendEmail from '../services/nodemailer.services.js';
+import User from '../models/user.model.js';
 import Otp from '../models/otp.model.js';
+import { otpSchema } from '../schemas/otp.schema.js';
+import { registerSchema } from '../schemas/user.schema.js';
+import sendEmail from '../services/nodemailer.services.js';
 import generateOtp from '../services/otp.services.js';
 
-// Helper functions
-
-const hashToken = (token) => {
-  return crypto.createHash('sha256').update(token).digest('hex');
-};
-
-const refreshCookieOptions = {
-  httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'strict',
-  maxAge: 7 * 24 * 60 * 60 * 1000,
-};
-
-// Controllers
+import {
+  findUserByEmailOrUsername,
+  hashPassword,
+  saveOrUpdateOtp,
+  createUserFromOtp,
+  saveHashedRefreshToken,
+  hashToken,
+  refreshCookieOptions,
+} from '../services/auth.services.js';
+import { generateAccessToken, generateRefreshToken } from '../utils/jwt.js';
 
 export const signUpController = async (req, res) => {
   try {
     const result = registerSchema.safeParse(req.body);
+
     if (!result.success) {
-      const error = result.error.issues.map((err) => err.message);
-      return res.status(400).json({ success: false, message: error });
+      const errors = result.error.issues.map((err) => err.message);
+
+      return res.status(400).json({
+        success: false,
+        message: errors,
+      });
     }
 
-    const { email, username, password } = result.data;
+    const { email, username, password, companyName } = result.data;
+
     const userExists = await findUserByEmailOrUsername(email, username);
 
-    if (userExists)
+    if (userExists) {
       return res.status(409).json({
         success: false,
-        message: 'user already exists',
+        message: 'User already exists',
       });
+    }
 
-    const saltRounds = Number(process.env.SALT_ROUNDS);
-    if (isNaN(saltRounds))
-      return res.status(500).json({ success: false, message: 'server broke' });
-    const hashedPassword = await bcrypt.hash(password, saltRounds);
+    const hashedPassword = await hashPassword(password);
 
     const otp = generateOtp();
     const emailSent = await sendEmail(otp, email);
-    const hashedOtp = await bcrypt.hash(String(otp), 10);
 
-    if (!emailSent.success)
-      return res
-        .status(500)
-        .json({ success: false, message: emailSent.message });
+    if (!emailSent.success) {
+      return res.status(500).json({
+        success: false,
+        message: emailSent.message,
+      });
+    }
 
-    const otpData = await Otp.findOneAndUpdate(
-      { email },
-      {
-        email,
-        username,
-        password: hashedPassword,
-        otp: hashedOtp,
-        companyName: result.data.companyName,
-      },
-      {
-        upsert: true,
-        new: true,
-      }
-    );
+    const otpData = await saveOrUpdateOtp({
+      email,
+      username,
+      password: hashedPassword,
+      companyName,
+      otp,
+    });
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
-      message: 'otp sent successfully',
+      message: 'OTP sent successfully',
       otpId: otpData._id,
     });
   } catch (err) {
-    if (err.code === 11000)
-      return res
-        .status(409)
-        .json({ success: false, message: 'user already exists' });
+    if (err.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: 'User already exists',
+      });
+    }
+
     console.error(err);
-    res.status(500).json({ success: false, message: 'internal server error' });
+
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+    });
   }
 };
 
@@ -91,84 +89,112 @@ export const verifyOtp = async (req, res) => {
     const result = otpSchema.safeParse(req.body);
 
     if (!result.success) {
-      const error = result.error.issues.map((err) => err.message);
-      return res.status(400).json({ success: false, message: error });
+      const errors = result.error.issues.map((err) => err.message);
+
+      return res.status(400).json({
+        success: false,
+        message: errors,
+      });
     }
+
     const { stringOtp, id } = result.data;
-    const user = await Otp.findById(id);
-    if (!user)
-      return res
-        .status(404)
-        .json({ success: false, message: 'user otp not found' });
-    const isOtpValid = await bcrypt.compare(stringOtp, user.otp);
-    if (!isOtpValid)
-      return res
-        .status(400)
-        .json({ success: false, message: 'please enter a valid otp' });
+
+    const otpUser = await Otp.findById(id);
+
+    if (!otpUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'OTP user not found',
+      });
+    }
+
+    const isOtpValid = await bcrypt.compare(stringOtp, otpUser.otp);
+
+    if (!isOtpValid) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please enter a valid OTP',
+      });
+    }
 
     await Otp.findByIdAndDelete(id);
-    const createUser = await User.create({
-      email: user.email,
-      password: user.password,
-      companyName: user.companyName,
-      username: user.username,
-      role: 'owner',
-    });
-    const accessToken = generateAccessToken(createUser._id, createUser.role);
-    const refreshToken = generateRefreshToken(createUser._id, createUser.role);
 
-    const details = {
-      username: user.username,
-      companyName: user.companyName,
-      email: user.email,
-      accessToken,
-    };
+    const user = await createUserFromOtp(otpUser);
+
+    const accessToken = generateAccessToken(user._id, user.role);
+    const refreshToken = generateRefreshToken(user._id, user.role);
+
+    await saveHashedRefreshToken(user, refreshToken);
 
     res.cookie('salesNova_rfs_tkn', refreshToken, refreshCookieOptions);
-    createUser.refreshToken = hashToken(refreshToken);
-    await createUser.save();
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
-      message: 'user created successfully',
-      userData: details,
+      message: 'User created successfully',
+      userData: {
+        username: user.username,
+        companyName: user.companyName,
+        email: user.email,
+        role: user.role,
+        accessToken,
+      },
     });
-  } catch (error) {
-    console.log(error);
-    res.status(500).json({ success: false, message: 'internal server error' });
+  } catch (err) {
+    console.error(err);
+
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+    });
   }
 };
 
 export const sendOtp = async (req, res) => {
   try {
     const { id } = req.body;
-    if (!id)
-      return res
-        .status(400)
-        .json({ success: false, message: 'otpId required from localstorage' });
 
-    const user = await Otp.findById(id);
-    if (!user)
-      return res
-        .status(404)
-        .json({ success: false, message: 'user not found signup again' });
-    const email = user.email;
-    if (!email)
-      return res
-        .status(404)
-        .json({ success: false, message: 'please signin again' });
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: 'otpId required from localStorage',
+      });
+    }
+
+    const otpUser = await Otp.findById(id);
+
+    if (!otpUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found, signup again',
+      });
+    }
+
     const otp = generateOtp();
     const hashedOtp = await bcrypt.hash(String(otp), 10);
-    user.otp = hashedOtp;
-    await user.save();
-    res.status(200).json({ success: true, message: 'otp send successfully' });
-    const emailSent = await sendEmail(otp, email);
-  } catch (err) {
-    res.status(500).json({
-      success: false,
-      message: 'something went wrong please try again later',
+
+    otpUser.otp = hashedOtp;
+    await otpUser.save();
+
+    const emailSent = await sendEmail(otp, otpUser.email);
+
+    if (!emailSent.success) {
+      return res.status(500).json({
+        success: false,
+        message: emailSent.message,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'OTP sent successfully',
     });
-    console.log(err);
+  } catch (err) {
+    console.error(err);
+
+    return res.status(500).json({
+      success: false,
+      message: 'Something went wrong, please try again later',
+    });
   }
 };
 
@@ -204,10 +230,9 @@ export const refreshTokenController = async (req, res) => {
     const newAccessToken = generateAccessToken(user._id, user.role);
     const newRefreshToken = generateRefreshToken(user._id, user.role);
 
-    res.cookie('salesNova_rfs_tkn', newRefreshToken, refreshCookieOptions);
+    await saveHashedRefreshToken(user, newRefreshToken);
 
-    user.refreshToken = hashToken(newRefreshToken);
-    await user.save();
+    res.cookie('salesNova_rfs_tkn', newRefreshToken, refreshCookieOptions);
 
     return res.status(200).json({
       success: true,
@@ -215,7 +240,8 @@ export const refreshTokenController = async (req, res) => {
       accessToken: newAccessToken,
     });
   } catch (err) {
-    console.log(err);
+    console.error(err);
+
     return res.status(401).json({
       success: false,
       message: 'Refresh token expired or invalid',
