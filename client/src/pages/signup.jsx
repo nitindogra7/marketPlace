@@ -1,7 +1,6 @@
 import signupImage from "../assets/signupImg.png";
 import AuthContainer from "../components/authContainer";
 import { useNavigate } from "react-router-dom";
-import InteractiveGridBackground from "../components/lightswind/interactive-grid-background.tsx";
 import { signup } from "../apis/auth.apis.js";
 
 export default function Signup() {

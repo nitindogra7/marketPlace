@@ -5,7 +5,7 @@ import SingUpRoute from './routes/auth.routes.js';
 import User from './models/user.model.js';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
-import dashboardRoute from './routes/dashboard.routes.js';
+import workSpaceRoute from './routes/dashboard.routes.js';
 
 dotenv.config();
 
@@ -27,7 +27,7 @@ app.get('/', (req, res) => {
 });
 
 app.use('/auth', SingUpRoute);
-app.use('/api', dashboardRoute);
+app.use('/api', workSpaceRoute);
 
 app.listen(
   process.env.PORT || 5000,

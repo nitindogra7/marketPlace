@@ -26,7 +26,7 @@ export default function OTPVerification() {
     localStorage.setItem("accessToken", res.userData.accessToken);
     setOtp(["", "", "", "", "", ""]);
     localStorage.removeItem("accessAccId");
-    Navigate("/dashboard")
+    Navigate("/workspace");
     }catch(err){
       console.error(err.message || err)
     }

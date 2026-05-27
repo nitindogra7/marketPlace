@@ -16,7 +16,7 @@ api.interceptors.response.use(
   async (error) => {
     const req = error.config;
 
-    if (error.response?.status === 401 && !req._retry) {
+    if (error.response?.status === 401 && !req._retry ) {
       req._retry = true;
 
       try {

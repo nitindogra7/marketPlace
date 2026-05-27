@@ -1,6 +1,4 @@
 import AuthContainer from "../components/authContainer";
-import GlowBackground from "../components/glowBackground";
-import InteractiveGridBackground from "../components/lightswind/interactive-grid-background.tsx";
 
 export default function Login() {
   return (

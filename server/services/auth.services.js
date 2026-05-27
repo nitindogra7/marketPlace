@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import bcrypt from 'bcrypt';
 import User from '../models/user.model.js';
+import WorkspaceModel from '../models/workspace.model.js';
 import Otp from '../models/otp.model.js';
 
 export const refreshCookieOptions = {
@@ -68,4 +69,15 @@ export const createUserFromOtp = async (otpUser) => {
 export const saveHashedRefreshToken = async (user, refreshToken) => {
   user.refreshToken = hashToken(refreshToken);
   await user.save();
+};
+
+export const createWorkspace = async (user) => {
+  return await WorkspaceModel.create({
+    user: user._id,
+    name: user.username + "'s Workspace",
+  });
+};
+
+export const findUserById = async (id) => {
+  return await User.findById(id);
 };

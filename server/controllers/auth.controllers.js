@@ -15,6 +15,7 @@ import {
   saveHashedRefreshToken,
   hashToken,
   refreshCookieOptions,
+  createWorkspace,
 } from '../services/auth.services.js';
 import { generateAccessToken, generateRefreshToken } from '../utils/jwt.js';
 
@@ -120,7 +121,7 @@ export const verifyOtp = async (req, res) => {
     await Otp.findByIdAndDelete(id);
 
     const user = await createUserFromOtp(otpUser);
-
+    const workspace = await createWorkspace(user);
     const accessToken = generateAccessToken(user._id, user.role);
     const refreshToken = generateRefreshToken(user._id, user.role);
 
@@ -248,3 +249,4 @@ export const refreshTokenController = async (req, res) => {
     });
   }
 };
+

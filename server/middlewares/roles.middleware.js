@@ -16,5 +16,4 @@ export const allowRoles = (...roles) => {
     next();
   };
 };
-
 export default allowRoles;
