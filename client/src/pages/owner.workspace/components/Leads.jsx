@@ -1,4 +1,7 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import api from "../../../apis/Api"; // adjust path according to your folder
+
 import {
   Users,
   Search,
@@ -15,50 +18,73 @@ import {
   ArrowUpRight,
 } from "lucide-react";
 
-const demoLeads = [
-  {
-    id: 1,
-    name: "Aman Sharma",
-    email: "aman@example.com",
-    phone: "+91 98765 43210",
-    company: "Nova Tech",
-    source: "Website Form",
-    status: "New",
-    assignedTo: "Not assigned",
-    createdAt: "Today",
-  },
-  {
-    id: 2,
-    name: "Priya Mehta",
-    email: "priya@example.com",
-    phone: "+91 91234 56789",
-    company: "Growth Labs",
-    source: "Landing Page",
-    status: "Contacted",
-    assignedTo: "Sales Team",
-    createdAt: "Yesterday",
-  },
-  {
-    id: 3,
-    name: "Rahul Verma",
-    email: "rahul@example.com",
-    phone: "+91 99887 76655",
-    company: "Startup Hub",
-    source: "Contact Form",
-    status: "Proposal",
-    assignedTo: "Manager",
-    createdAt: "2 days ago",
-  },
-];
-
 export default function Leads() {
   const [search, setSearch] = useState("");
 
-  const filteredLeads = demoLeads.filter((lead) =>
-    lead.name.toLowerCase().includes(search.toLowerCase()) ||
-    lead.email.toLowerCase().includes(search.toLowerCase()) ||
-    lead.company.toLowerCase().includes(search.toLowerCase())
-  );
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+  } = useQuery({
+    queryKey: ["leads"],
+    queryFn: async () => {
+      const res = await api.get("/api/leads");
+      return res.data;
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <section className="min-h-screen w-full bg-black text-white px-8 py-10">
+        <div className="mx-auto w-full max-w-[1120px]">
+          <p className="text-neutral-500">Loading leads...</p>
+        </div>
+      </section>
+    );
+  }
+
+  if (isError) {
+    return (
+      <section className="min-h-screen w-full bg-black text-white px-8 py-10">
+        <div className="mx-auto w-full max-w-[1120px]">
+          <p className="text-red-400">
+            {error?.response?.data?.message || "Failed to load leads"}
+          </p>
+        </div>
+      </section>
+    );
+  }
+
+  const leads = data?.leads || [];
+
+  const filteredLeads = leads.filter((lead) => {
+    const searchValue = search.toLowerCase();
+
+    return (
+      lead.name?.toLowerCase().includes(searchValue) ||
+      lead.email?.toLowerCase().includes(searchValue) ||
+      lead.phone?.toLowerCase().includes(searchValue) ||
+      lead.source?.toLowerCase().includes(searchValue)
+    );
+  });
+
+  const totalLeads = leads.length;
+  const newLeads = leads.filter((lead) => lead.status === "new").length;
+  const contactedLeads = leads.filter(
+    (lead) => lead.status === "contacted"
+  ).length;
+  const proposalLeads = leads.filter(
+    (lead) => lead.status === "proposal"
+  ).length;
+  const wonLeads = leads.filter((lead) => lead.status === "won").length;
+  const lostLeads = leads.filter((lead) => lead.status === "lost").length;
+
+  const sourceCounts = leads.reduce((acc, lead) => {
+    const source = lead.source || "website";
+    acc[source] = (acc[source] || 0) + 1;
+    return acc;
+  }, {});
 
   return (
     <section className="min-h-screen w-full bg-black text-white px-8 py-10">
@@ -76,7 +102,8 @@ export default function Leads() {
               </h1>
 
               <p className="mt-2 text-sm text-neutral-500">
-                Track all leads captured from your website forms and landing pages.
+                Track all leads captured from your website forms and landing
+                pages.
               </p>
             </div>
           </div>
@@ -89,10 +116,10 @@ export default function Leads() {
 
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-5 mb-7">
-          <LeadStat title="Total Leads" value="3" />
-          <LeadStat title="New Leads" value="1" />
-          <LeadStat title="Contacted" value="1" />
-          <LeadStat title="Proposal" value="1" />
+          <LeadStat title="Total Leads" value={totalLeads} />
+          <LeadStat title="New Leads" value={newLeads} />
+          <LeadStat title="Contacted" value={contactedLeads} />
+          <LeadStat title="Proposal" value={proposalLeads} />
         </div>
 
         {/* Main Grid */}
@@ -135,7 +162,7 @@ export default function Leads() {
             {/* Leads List */}
             <div className="p-5 space-y-4">
               {filteredLeads.map((lead) => (
-                <LeadCard key={lead.id} lead={lead} />
+                <LeadCard key={lead._id} lead={lead} />
               ))}
 
               {filteredLeads.length === 0 && (
@@ -163,11 +190,11 @@ export default function Leads() {
               </div>
 
               <div className="space-y-3">
-                <PipelineItem title="New" count="1" />
-                <PipelineItem title="Contacted" count="1" />
-                <PipelineItem title="Proposal" count="1" />
-                <PipelineItem title="Won" count="0" />
-                <PipelineItem title="Lost" count="0" />
+                <PipelineItem title="New" count={newLeads} />
+                <PipelineItem title="Contacted" count={contactedLeads} />
+                <PipelineItem title="Proposal" count={proposalLeads} />
+                <PipelineItem title="Won" count={wonLeads} />
+                <PipelineItem title="Lost" count={lostLeads} />
               </div>
             </div>
 
@@ -186,9 +213,13 @@ export default function Leads() {
               </div>
 
               <div className="space-y-3">
-                <SourceItem title="Website Form" count="1" />
-                <SourceItem title="Landing Page" count="1" />
-                <SourceItem title="Contact Form" count="1" />
+                {Object.entries(sourceCounts).map(([source, count]) => (
+                  <SourceItem key={source} title={source} count={count} />
+                ))}
+
+                {Object.entries(sourceCounts).length === 0 && (
+                  <p className="text-sm text-neutral-500">No sources yet.</p>
+                )}
               </div>
             </div>
           </aside>
@@ -219,21 +250,35 @@ function LeadCard({ lead }) {
 
           <div>
             <div className="flex items-center gap-3">
-              <h3 className="text-sm font-medium text-white">{lead.name}</h3>
+              <h3 className="text-sm font-medium text-white">
+                {lead.name || "Unknown Lead"}
+              </h3>
               <StatusBadge status={lead.status} />
             </div>
 
             <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2 text-sm text-neutral-500">
-              <Info icon={<Mail size={14} />} text={lead.email} />
-              <Info icon={<Phone size={14} />} text={lead.phone} />
-              <Info icon={<Building2 size={14} />} text={lead.company} />
-              <Info icon={<Clock size={14} />} text={lead.createdAt} />
+              <Info icon={<Mail size={14} />} text={lead.email || "No email"} />
+              <Info icon={<Phone size={14} />} text={lead.phone || "No phone"} />
+              <Info
+                icon={<Building2 size={14} />}
+                text={lead.customFields?.company || "No company"}
+              />
+              <Info
+                icon={<Clock size={14} />}
+                text={formatDate(lead.createdAt)}
+              />
             </div>
 
             <div className="mt-4 flex flex-wrap items-center gap-2">
-              <SmallTag text={lead.source} />
-              <SmallTag text={`Assigned: ${lead.assignedTo}`} />
+              <SmallTag text={lead.source || "website"} />
+              <SmallTag text={`Priority: ${lead.priority || "medium"}`} />
             </div>
+
+            {lead.message && (
+              <p className="mt-4 text-sm text-neutral-500 line-clamp-2">
+                {lead.message}
+              </p>
+            )}
           </div>
         </div>
 
@@ -255,21 +300,25 @@ function Info({ icon, text }) {
 }
 
 function StatusBadge({ status }) {
+  const normalizedStatus = status?.toLowerCase();
+
   const styles = {
-    New: "text-blue-400 border-blue-500/20 bg-blue-500/10",
-    Contacted: "text-yellow-400 border-yellow-500/20 bg-yellow-500/10",
-    Proposal: "text-purple-400 border-purple-500/20 bg-purple-500/10",
-    Won: "text-green-400 border-green-500/20 bg-green-500/10",
-    Lost: "text-red-400 border-red-500/20 bg-red-500/10",
+    new: "text-blue-400 border-blue-500/20 bg-blue-500/10",
+    contacted: "text-yellow-400 border-yellow-500/20 bg-yellow-500/10",
+    qualified: "text-cyan-400 border-cyan-500/20 bg-cyan-500/10",
+    proposal: "text-purple-400 border-purple-500/20 bg-purple-500/10",
+    won: "text-green-400 border-green-500/20 bg-green-500/10",
+    lost: "text-red-400 border-red-500/20 bg-red-500/10",
   };
 
   return (
     <span
       className={`rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-wide ${
-        styles[status] || "text-neutral-400 border-neutral-800 bg-neutral-900"
+        styles[normalizedStatus] ||
+        "text-neutral-400 border-neutral-800 bg-neutral-900"
       }`}
     >
-      {status}
+      {normalizedStatus || "new"}
     </span>
   );
 }
@@ -298,7 +347,7 @@ function PipelineItem({ title, count }) {
 function SourceItem({ title, count }) {
   return (
     <div className="flex items-center justify-between rounded-2xl border border-neutral-900 bg-black px-4 py-3">
-      <p className="text-sm text-neutral-400">{title}</p>
+      <p className="text-sm text-neutral-400 capitalize">{title}</p>
 
       <div className="flex items-center gap-2">
         <span className="text-sm font-medium text-white">{count}</span>
@@ -306,4 +355,14 @@ function SourceItem({ title, count }) {
       </div>
     </div>
   );
+}
+
+function formatDate(date) {
+  if (!date) return "No date";
+
+  return new Date(date).toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 }

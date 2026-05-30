@@ -87,9 +87,10 @@ export const getApiKey = async (req, res) => {
     const workspace = await findWorkspaceByUserId(id);
 
     if (!workspace || !workspace.apiKey) {
-      return res.status(404).json({
-        success: false,
-        message: 'No API key found',
+      return res.status(200).json({
+        success: true,
+        apiKey: null,
+        message: 'No API key generated yet',
       });
     }
 

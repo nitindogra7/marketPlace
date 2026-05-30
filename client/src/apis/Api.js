@@ -21,13 +21,14 @@ api.interceptors.response.use(
 
       try {
         const res = await axios.post(
-          'http://localhost:5000/auth/refresh-token'
+          'http://localhost:5000/auth/refresh-token',
+          {},
+          { withCredentials: true }
         );
         const token = res.data.accessToken;
 
         localStorage.setItem('accessToken', token);
         req.headers.Authorization = `Bearer ${token}`;
-
         return api(req);
       } catch (err) {
         localStorage.removeItem('accessToken');

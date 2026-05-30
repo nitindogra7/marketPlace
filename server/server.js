@@ -6,6 +6,7 @@ import User from './models/user.model.js';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import workSpaceRoute from './routes/dashboard.routes.js';
+import leadRoutes from './routes/leads.routes.js';
 
 dotenv.config();
 
@@ -28,6 +29,7 @@ app.get('/', (req, res) => {
 
 app.use('/auth', SingUpRoute);
 app.use('/api', workSpaceRoute);
+app.use('/api', leadRoutes);
 
 app.listen(
   process.env.PORT || 5000,
